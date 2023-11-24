@@ -1,16 +1,37 @@
 from flask import Flask, request, send_file, jsonify
 import yt_dlp
 import os
+import uuid
+from functools import wraps
 
 app = Flask(__name__)
 
+TOKEN = os.getenv('TOKEN') or str(uuid.uuid4())
+app.logger.warning(f"Token: {TOKEN}")
+
+def check_token(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        provided_token = request.args.get('token')
+
+        if not provided_token:
+            return jsonify({"error": "token is required."}), 401
+
+        if provided_token != TOKEN:
+            return jsonify({"error": "invalid token."}), 401
+
+        return func(*args, **kwargs)
+
+    return wrapper
+
 @app.route('/download', methods=['GET'])
+@check_token
 def download_video():
     video_url = request.args.get('url')
     output_template = request.args.get('output_template', '%(id)s.%(ext)s')
 
     if not video_url:
-        return jsonify({"error": "please provide a video URL."}), 400
+        return jsonify({"error": "please provide a video url."}), 400
 
     ydl_opts = {
         'format': 'best',
